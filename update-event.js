@@ -56,12 +56,19 @@ async function nextEvent() {
     .sort((a, b) => new Date(a.eventTime.startUtc) - new Date(b.eventTime.startUtc))[0] || null;
 }
 
-const clean = s => String(s ?? '').replace(/\|/g, '&#124;').replace(/[\r\n]+/g, ' ').trim();
+const esc = s => String(s ?? '')
+  .replace(/[|{}\[\]]/g, c => '&#' + c.charCodeAt(0) + ';')
+  .replace(/'{2,}/g, m => '&#39;'.repeat(m.length));
+
+const clean = s => esc(s).replace(/[\r\n]+/g, ' ').trim();
+
+const cleanBlock = s => esc(s).replace(/\r/g, '').split('\n')
+  .map(l => l.trim()).filter(Boolean).join('<br>');
 
 const fmt = d => new Date(d).toLocaleString('en-GB', {
   timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric',
   hour: '2-digit', minute: '2-digit', hour12: false
-}).replace(',', ',') + ' UTC';
+}) + ' UTC';
 
 const FOOTER = `<noinclude>
 '''This page is maintained automatically.''' It is rewritten from Roblox's event data by a bot — do not edit it by hand, as changes will be overwritten.
@@ -74,10 +81,14 @@ function render(ev) {
   if (!ev) {
     return `<includeonly>''No event is currently scheduled. Check the [https://www.roblox.com/games/${PLACE}/Mine-a-Mountain Roblox page] for announcements.''</includeonly>${FOOTER}`;
   }
+
   const upcoming = new Date(ev.eventTime.startUtc).getTime() > Date.now();
   const rows = [
     `! Event\n| ${clean(ev.displayTitle || ev.title)}`,
-    ev.displaySubtitle ? `! Details\n| ${clean(ev.displaySubtitle)}` : null,
+    ev.displaySubtitle ? `! Summary\n| ${clean(ev.displaySubtitle)}` : null,
+    ev.displayDescription
+      ? `! Details\n| style="text-align:left;" | ${cleanBlock(ev.displayDescription)}`
+      : null,
     `! Starts\n| ${fmt(ev.eventTime.startUtc)}`,
     `! Ends\n| ${fmt(ev.eventTime.endUtc)}`
   ].filter(Boolean).join('\n|-\n');
