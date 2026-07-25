@@ -137,10 +137,11 @@ function render(ev, hasImage) {
   }
 
   const tag = ev.eventCategories?.[0]?.category;
+  const tagHtml = tag ? `<div class="mam-event-tag">${clean(label(tag))}</div>` : '';
   const when = `${fmtDate(ev.eventTime.startUtc)}, ${fmtTime(ev.eventTime.startUtc)} &ndash; ${fmtTime(ev.eventTime.endUtc)} UTC`;
 
   const img = hasImage
-    ? `<div class="mam-event-img">[[File:${FILE}|336px|link=]]</div>`
+    ? `<div class="mam-event-img">[[File:${FILE}|336px|link=]]${tagHtml}</div>`
     : '';
 
   const desc = ev.displayDescription
@@ -150,7 +151,7 @@ function render(ev, hasImage) {
   return `<includeonly><div class="mam-event">
 <div class="mam-event-top">${img}
 <div class="mam-event-info">
-${tag ? `<div class="mam-event-tag">${clean(label(tag))}</div>` : ''}
+${hasImage ? '' : tagHtml}
 <div class="mam-event-title">${clean(ev.displayTitle || ev.title)}</div>
 ${ev.displaySubtitle ? `<div class="mam-event-sub">${clean(ev.displaySubtitle)}</div>` : ''}
 <div class="mam-event-time">${when}</div>
