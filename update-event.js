@@ -119,7 +119,10 @@ const fmtTime = d => new Date(d).toLocaleString('en-GB', {
   timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false
 });
 
-const label = c => String(c || '').replace(/([A-Z])/g, ' $1').replace(/^./, m => m.toUpperCase()).trim();
+const label = c => {
+  const s = String(c || '').replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
 
 const FOOTER = `<noinclude>
 '''This page is maintained automatically.''' It is rewritten from Roblox's event data by a bot — do not edit it by hand, as changes will be overwritten.
