@@ -128,7 +128,7 @@ const FOOTER = `<noinclude>
 '''This page is maintained automatically.''' It is rewritten from Roblox's event data by a bot — do not edit it by hand, as changes will be overwritten.
 
 Used by [[Admin Abuse]].
-[[Category:Navigation templates]]
+[[Category:Automated templates]]
 </noinclude>`;
 
 function render(ev, hasImage) {
