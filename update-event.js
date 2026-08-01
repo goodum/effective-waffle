@@ -163,6 +163,7 @@ ${ev.displaySubtitle ? `<div class="mam-event-sub">${clean(ev.displaySubtitle)}<
 
 (async () => {
   const ev = await nextEvent();
+  console.log('RAW EVENT:', JSON.stringify(ev, null, 2));
   await login();
 
   let hasImage = false;
