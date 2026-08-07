@@ -1,3 +1,53 @@
+const { createHash } = require('node:crypto');
+
+const API = 'https://mine-a-mountain-roblox.fandom.com/api.php';
+const UNIVERSE = '10187294555';
+const PLACE = '125927821145949';
+const PAGE = 'Template:Next event';
+const FILE = 'Current event.png';
+const UA = 'MaMWikiEventBot/1.0 (wiki maintenance; contact via wiki talk page)';
+
+let cookies = {};
+const cookieHeader = () => Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join('; ');
+
+function storeCookies(res) {
+  for (const c of res.headers.getSetCookie?.() ?? []) {
+    const pair = c.split(';')[0];
+    const i = pair.indexOf('=');
+    if (i > 0) cookies[pair.slice(0, i).trim()] = pair.slice(i + 1).trim();
+  }
+}
+
+async function api(params, method = 'GET') {
+  const body = new URLSearchParams({ format: 'json', formatversion: '2', ...params });
+  const res = await fetch(method === 'GET' ? `${API}?${body}` : API, {
+    method,
+    headers: {
+      'user-agent': UA,
+      cookie: cookieHeader(),
+      ...(method === 'POST' ? { 'content-type': 'application/x-www-form-urlencoded' } : {})
+    },
+    body: method === 'POST' ? body : undefined
+  });
+  storeCookies(res);
+  const json = await res.json();
+  if (json.error) throw new Error(JSON.stringify(json.error));
+  return json;
+}
+
+async function login() {
+  const t = await api({ action: 'query', meta: 'tokens', type: 'login' });
+  const r = await api({
+    action: 'login',
+    lgname: process.env.WIKI_USER,
+    lgpassword: process.env.WIKI_PASS,
+    lgtoken: t.query.tokens.logintoken
+  }, 'POST');
+  if (r.login.result !== 'Success') throw new Error('Login failed: ' + r.login.result);
+}
+
+async function nextEvent() {
+  const res = await fetch(
     `https://apis.roblox.com/virtual-events/v1/universes/${UNIVERSE}/virtual-events`,
     { headers: { 'accept-language': 'en-US', 'user-agent': UA } }
   );
