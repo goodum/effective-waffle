@@ -1,53 +1,3 @@
-const { createHash } = require('node:crypto');
-
-const API = 'https://mine-a-mountain-roblox.fandom.com/api.php';
-const UNIVERSE = '10187294555';
-const PLACE = '125927821145949';
-const PAGE = 'Template:Next event';
-const FILE = 'Current event.png';
-const UA = 'MaMWikiEventBot/1.0 (wiki maintenance; contact via wiki talk page)';
-
-let cookies = {};
-const cookieHeader = () => Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join('; ');
-
-function storeCookies(res) {
-  for (const c of res.headers.getSetCookie?.() ?? []) {
-    const pair = c.split(';')[0];
-    const i = pair.indexOf('=');
-    if (i > 0) cookies[pair.slice(0, i).trim()] = pair.slice(i + 1).trim();
-  }
-}
-
-async function api(params, method = 'GET') {
-  const body = new URLSearchParams({ format: 'json', formatversion: '2', ...params });
-  const res = await fetch(method === 'GET' ? `${API}?${body}` : API, {
-    method,
-    headers: {
-      'user-agent': UA,
-      cookie: cookieHeader(),
-      ...(method === 'POST' ? { 'content-type': 'application/x-www-form-urlencoded' } : {})
-    },
-    body: method === 'POST' ? body : undefined
-  });
-  storeCookies(res);
-  const json = await res.json();
-  if (json.error) throw new Error(JSON.stringify(json.error));
-  return json;
-}
-
-async function login() {
-  const t = await api({ action: 'query', meta: 'tokens', type: 'login' });
-  const r = await api({
-    action: 'login',
-    lgname: process.env.WIKI_USER,
-    lgpassword: process.env.WIKI_PASS,
-    lgtoken: t.query.tokens.logintoken
-  }, 'POST');
-  if (r.login.result !== 'Success') throw new Error('Login failed: ' + r.login.result);
-}
-
-async function nextEvent() {
-  const res = await fetch(
     `https://apis.roblox.com/virtual-events/v1/universes/${UNIVERSE}/virtual-events`,
     { headers: { 'accept-language': 'en-US', 'user-agent': UA } }
   );
@@ -59,6 +9,28 @@ async function nextEvent() {
     .sort((a, b) => new Date(a.eventTime.startUtc) - new Date(b.eventTime.startUtc))[0] || null;
 }
 
+const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+// Roblox regenerates the same thumbnail on several CDN nodes, each stamped with its
+// own processing time. The pixels are identical; only these chunks differ, so hashing
+// the raw download made every run look like a new image. Drop them before comparing.
+const VOLATILE_CHUNKS = new Set(['tIME', 'tEXt', 'zTXt', 'iTXt']);
+
+function stripPngTimestamps(buf) {
+  if (!buf.subarray(0, 8).equals(PNG_SIG)) return buf;
+  const keep = [buf.subarray(0, 8)];
+  let i = 8;
+  while (i + 8 <= buf.length) {
+    const len = buf.readUInt32BE(i);
+    const end = i + 12 + len;
+    if (end > buf.length) return buf;            // malformed - upload it untouched
+    if (!VOLATILE_CHUNKS.has(buf.toString('latin1', i + 4, i + 8))) {
+      keep.push(buf.subarray(i, end));
+    }
+    i = end;
+  }
+  return Buffer.concat(keep);
+}
+
 async function thumbnailBytes(mediaId) {
   const meta = await fetch(
     `https://thumbnails.roblox.com/v1/assets?assetIds=${mediaId}&size=768x432&format=Png&isCircular=false`,
@@ -68,7 +40,7 @@ async function thumbnailBytes(mediaId) {
   if (!entry || entry.state !== 'Completed' || !entry.imageUrl) return null;
   const img = await fetch(entry.imageUrl, { headers: { 'user-agent': UA } });
   if (!img.ok) return null;
-  return Buffer.from(await img.arrayBuffer());
+  return stripPngTimestamps(Buffer.from(await img.arrayBuffer()));
 }
 
 async function syncImage(bytes) {
